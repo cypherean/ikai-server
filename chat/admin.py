@@ -5,12 +5,12 @@ from .models import *
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('chatroom_id', 'author', 'content')
+    list_display = ('chatroom_id', 'author', 'content', 'timestamp')
 
 
 @admin.register(ChatRoom)
 class ChatRoomAdmin(admin.ModelAdmin):
-    list_display = ('name', 'id', 'room_type', 'created_at')
+    list_display = ('name', 'id', 'room_type', 'created_at', 'updated_at')
 
 
 @admin.register(ChatRoomPermission)
