@@ -10,9 +10,15 @@ class MessageAdmin(admin.ModelAdmin):
 
 @admin.register(ChatRoom)
 class ChatRoomAdmin(admin.ModelAdmin):
-    list_display = ('name', 'id', 'room_type', 'created_at', 'updated_at')
+    list_display = ('name', 'id', 'room_type', 'verified',
+                    'created_at', 'updated_at')
 
 
 @admin.register(ChatRoomPermission)
 class ChatRoomPermission(admin.ModelAdmin):
-    list_display = ('chatroom', 'user')
+    list_display = ('name', 'user', 'public_key')
+
+
+@admin.register(Requests)
+class Requests(admin.ModelAdmin):
+    list_display = ('sender', 'receiver', 'status')
