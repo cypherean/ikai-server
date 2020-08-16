@@ -152,3 +152,11 @@ REST_SESSION_LOGIN = False
 #         'rest_framework.permissions.IsAdminUser',
 #     ),
 # }
+
+AUTH_USER_MODEL = 'userLogin.MyUser'
+REST_AUTH_SERIALIZERS = {
+    "USER_DETAILS_SERIALIZER": "userLogin.serializers.CustomUserDetailsSerializer",
+}
+REST_AUTH_REGISTER_SERIALIZERS = {
+    "REGISTER_SERIALIZER": "userLogin.serializers.CustomRegisterSerializer",
+}

@@ -2,7 +2,7 @@ import json
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 from .models import *
-from django.contrib.auth.models import User
+from userLogin.models import MyUser
 from datetime import datetime
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -40,7 +40,7 @@ class ChatConsumer(WebsocketConsumer):
                 if 'token' in data.keys():
                     token = data['token']
                     username = Token.objects.get(key=token)
-                    user = User.objects.get(username=username)
+                    user = MyUser.objects.get(username=username)
                     self.scope['user'] = user
                     print(f"User: {username} is now authenticated")
             except Exception as e:
@@ -66,7 +66,7 @@ class ChatConsumer(WebsocketConsumer):
         chatroom = ChatRoom.objects.filter(id=self.chatroom_id)
         chatroom.update(updated_at=datetime.now(),
                         last_message=text_data['message'][:50])
-        author = User.objects.get(username=text_data['username'])
+        author = MyUser.objects.get(username=text_data['username'])
         message_data = {
             'chatroom': chatroom[0],
             # author:self.user,

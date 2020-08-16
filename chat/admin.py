@@ -16,7 +16,7 @@ class ChatRoomAdmin(admin.ModelAdmin):
 
 @admin.register(ChatRoomPermission)
 class ChatRoomPermission(admin.ModelAdmin):
-    list_display = ('name', 'user', 'public_key')
+    list_display = ('name', 'user')
 
 
 @admin.register(Requests)
