@@ -2,7 +2,7 @@ import json
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 from .models import *
-from userLogin.models import MyUser
+from django.contrib.auth.models import User
 from datetime import datetime
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -21,6 +21,7 @@ class ChatConsumer(WebsocketConsumer):
             self.channel_name
         )
         self.accept()
+        self.user = None
         print("connection accepted.")
 
     def disconnect(self, close_code):
@@ -32,68 +33,89 @@ class ChatConsumer(WebsocketConsumer):
     # Receive message from WebSocket
     def receive(self, text_data):
         # django channel authentication:
-        if self.scope['user'].id:
+        if self.user:
             pass
         else:
             try:
                 data = json.loads(text_data)
                 if 'token' in data.keys():
                     token = data['token']
-                    username = Token.objects.get(key=token)
-                    user = MyUser.objects.get(username=username)
-                    self.scope['user'] = user
-                    print(f"User: {username} is now authenticated")
+                    user = Token.objects.get(key=token).user
+                    self.user = user
+                    print(f"User: {user.username} is now authenticated")
             except Exception as e:
                 print(e)
                 pass
-        if not self.scope['user'].id:
+        if not self.user:
             self.send(json.dumps({'err': 'unauthorized'}))
             self.close()
             return
         text_data = json.loads(text_data)
+        print(text_data)
         if text_data['command'] == 'new_message':
             self.new_message_handler(text_data)
         elif text_data['command'] == 'fetch_messages':
             self.fetch_page_messages(self.chatroom_id)
         elif text_data['command'] == 'fetch_prev_messages':
             self.fetch_prev_messages(self.chatroom_id, text_data['time'])
+        elif text_data['command'] == 'last':
+            self.fetch_prev_message(self.chatroom_id)
+        elif text_data['command'] == 'ping':
+            pass
 
     def chat_message(self, event):
-        message_details = event['message_details']
-        self.send(json.dumps({'typ': 'new', 'messages': [message_details]}))
+        self.send(json.dumps({'typ': 'refresh'}))
 
     def save_message(self, text_data):
         chatroom = ChatRoom.objects.filter(id=self.chatroom_id)
-        chatroom.update(updated_at=datetime.now(),
-                        last_message=text_data['message'][:50])
-        author = MyUser.objects.get(username=text_data['username'])
+        other_user = User.objects.get(username=text_data['username'])
         message_data = {
             'chatroom': chatroom[0],
-            # author:self.user,
-            'author': author,
-            'content': text_data['message']
+            'author': self.user,
+            'authorized': self.user,
+            'content': text_data['message1']
+        }
+        new_message = Message(**message_data)
+        new_message.save()
+        message_data = {
+            'chatroom': chatroom[0],
+            'author': self.user,
+            'authorized': other_user,
+            'content': text_data['message2']
         }
         new_message = Message(**message_data)
         new_message.save()
 
-    def fetch_prev_messages(self, chatroom_id, time):
-        messages = Message.objects.filter(chatroom_id=chatroom_id, timestamp__lt=timezone.make_aware(datetime.strptime(time, '%Y-%m-%d %H:%M:%S'))).order_by(
-            '-timestamp')[0:10]
-        messages = Reverse(messages)
+    def fetch_prev_message(self, chatroom_id, time):
+        message = Message.objects.filter(chatroom_id=chatroom_id, timestamp__lt=timezone.make_aware(datetime.strptime(time, '%Y-%m-%d %H:%M:%S')), authorized=self.user).order_by(
+            '-timestamp')[0]
         page_messages = []
-        for message in messages:
-            page_messages.append({
-                'chatroom': message.chatroom.id,
-                'author': message.author.username,
-                'content': message.content,
-                'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                'typ': 'old'
-            })
+        page_messages.append({
+            'chatroom': message.chatroom.id,
+            'author': message.author.username,
+            'content': message.content,
+            'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'typ': 'old'
+        })
         self.send(json.dumps(
             {'typ': 'old', 'messages': page_messages}))
 
+    def fetch_prev_message(self, chatroom_id):
+        message = Message.objects.filter(chatroom_id=chatroom_id, authorized=self.user).order_by(
+            '-timestamp')[0]
+        page_messages = []
+        page_messages.append({
+            'chatroom': message.chatroom.id,
+            'author': message.author.username,
+            'content': message.content,
+            'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'typ': 'new'
+        })
+        self.send(json.dumps(
+            {'typ': 'new', 'messages': page_messages}))
+
     def fetch_page_messages(self, chatroom_id):
-        messages = Message.objects.filter(chatroom_id=chatroom_id).order_by(
+        messages = Message.objects.filter(chatroom_id=chatroom_id, authorized=self.user).order_by(
             '-timestamp')[0:10]
         messages = Reverse(messages)
         page_messages = []
@@ -114,13 +136,6 @@ class ChatConsumer(WebsocketConsumer):
             self.chatroom_group_id,
             {
                 'type': 'chat_message',
-                'message_details': {
-                    'chatroom': self.chatroom_id,
-                    'author': text_data['username'],
-                    'content': text_data['message'],
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'typ': 'new'
-                }
             }
         )
 

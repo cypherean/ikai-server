@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.response import Response
 import json
-from userLogin.models import MyUser
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from chat.models import *
 from rest_framework import permissions
@@ -14,24 +14,32 @@ from rest_auth.registration.views import RegisterView
 
 
 class CustomRegisterView(RegisterView):
-    queryset = MyUser.objects.all()
+    queryset = User.objects.all()
 
 
 class Chatrooms(APIView):
 
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # user = request.user
-        user = MyUser.objects.get(username='burnerlee')
+        user = request.user
         chatrooms = ChatRoomPermission.objects.select_related(
-            'chatroom').filter(user=user)
+            'chatroom').filter(user=user, chatroom__verified=True)
         result = []
         for chatroom in chatrooms:
+            chatroom_name = chatroom.name
+            users = chatroom_name.split('-')
+            if users[0] == user.username:
+                other_username = users[1]
+            elif users[1] == user.username:
+                other_username = users[0]
+            other_user = User.objects.get(username=other_username)
             result.append(
                 {
                     'id': chatroom.chatroom.id,
-                    'name': chatroom.chatroom.name,
+                    'name': other_username,
+                    'publickey': other_user.userkeys.publickey,
+                    'my_publickey': user.userkeys.publickey,
                     'room_type': chatroom.chatroom.room_type,
                     'updated_at': chatroom.chatroom.updated_at.strftime("%H:%M"),
                     'updated_at_date': chatroom.chatroom.updated_at.strftime("%d/%m"),
@@ -45,16 +53,16 @@ class Chatrooms(APIView):
 
 class UserSearch(APIView):
 
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        # request_user = request.user
-        request_user = MyUser.objects.get(username='burnerlee')
+        request_user = request.user
         username = request_user.username
         try:
             query = request.GET['query']
         except KeyError as e:
             return Response({'err': 'get a query with "query" parameter'}, status=400)
-        users = MyUser.objects.filter(username__istartswith=query)
+        users = User.objects.filter(username__istartswith=query)
         results = []
         for user in users:
             status = "new"
@@ -65,15 +73,14 @@ class UserSearch(APIView):
             chatroom_id = ''
             if len(requests) > 0:
                 if requests[0].status == "PENDING":
-                    status = "pending"
+                    status = "requested"
                 elif requests[0].status == "ACCEPTED":
                     status = "accepted"
             requests = Requests.objects.filter(
                 sender=request_user, receiver=user)
             if len(requests) > 0:
                 if requests[0].status == "PENDING":
-                    status = "requested"
-                    chatroom_id = request.chatroom.id
+                    status = "pending"
                 elif requests[0].status == "ACCEPTED":
                     status = "accepted"
             results.append({'username': user.username,
@@ -82,15 +89,15 @@ class UserSearch(APIView):
 
 
 class Request(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        # sender = request.user
-        sender = MyUser.objects.get(username="burnerlee")
+        sender = request.user
         try:
             query = request.GET['user']
         except KeyError as e:
             return Response({'err': 'get a query with user parameter'}, status=400)
-        receiver = MyUser.objects.get(username=query)
+        receiver = User.objects.get(username=query)
         if receiver == sender:
             return Response({'err': 'sender and receiver are the same.INVALID REQUEST'}, status=400)
         data = {
@@ -121,8 +128,7 @@ class RequestAccept(APIView):
 
     def get(self, request):
         try:
-            # acceptor = request.user
-            acceptor = MyUser.objects.get(username='mahak')
+            acceptor = request.user
         except Exception as e:
             return Response({'err': e}, status=400)
         try:
@@ -130,7 +136,7 @@ class RequestAccept(APIView):
         except KeyError as e:
             return Response({'err': 'get a query with user parameter'}, status=400)
         try:
-            sender = MyUser.objects.get(username=query)
+            sender = User.objects.get(username=query)
         except Exception as e:
             return Response({'err': f'user with given username does not exist: {e}'}, status=400)
         request = Requests.objects.filter(sender=sender, receiver=acceptor)
@@ -139,7 +145,8 @@ class RequestAccept(APIView):
         try:
             new_chatroom = request[0].chatroom
             request.update(status='ACCEPTED')
-            new_chatroom.update(verified=True)
+            new_chatroom.verified = True
+            new_chatroom.save()
             data = {
                 'chatroom': new_chatroom,
                 'user': acceptor
@@ -152,16 +159,15 @@ class RequestAccept(APIView):
 
 
 class RequestDecline(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # decliner = request.user
-        decliner = MyUser.objects.get(username='mahak')
+        decliner = request.user
         try:
             query = request.GET['user']
         except KeyError as e:
             return Response({'err': 'get a query with user parameter'}, status=400)
-        sender = MyUser.objects.get(username=query)
+        sender = User.objects.get(username=query)
         request = Requests.objects.filter(
             sender=sender, receiver=decliner).select_related('chatroom')
         if len(request) == 0:
@@ -175,10 +181,10 @@ class RequestDecline(APIView):
 
 
 class PendingRequests(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        # request_user = request.user
-        request_user = MyUser.objects.get(username='mahak')
+        request_user = request.user
         results = []
         pending_requests = Requests.objects.filter(
             status="PENDING", receiver=request_user)

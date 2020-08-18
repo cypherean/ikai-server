@@ -144,19 +144,17 @@ CHANNEL_LAYERS = {
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 REST_SESSION_LOGIN = False
 
-# REST_FRAMEWORK = {
-#     'DEFAULT_AUTHENTICATION_CLASSES': (
-#         'rest_framework.authentication.TokenAuthentication',
-#     ),
-#     'DEFAULT_PERMISSION_CLASSES': (
-#         'rest_framework.permissions.IsAdminUser',
-#     ),
-# }
-
-AUTH_USER_MODEL = 'userLogin.MyUser'
-REST_AUTH_SERIALIZERS = {
-    "USER_DETAILS_SERIALIZER": "userLogin.serializers.CustomUserDetailsSerializer",
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.TokenAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAdminUser',
+    ),
 }
+
 REST_AUTH_REGISTER_SERIALIZERS = {
     "REGISTER_SERIALIZER": "userLogin.serializers.CustomRegisterSerializer",
 }
+
+CSRF_COOKIE_SECURE = False

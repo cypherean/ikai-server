@@ -1,5 +1,5 @@
 from django.db import models
-from userLogin.models import MyUser
+from django.contrib.auth.models import User
 from django.utils.timezone import now
 ROOM_TYPE_CHOICES = (
     ('GROUP', 'GROUP'),
@@ -20,14 +20,17 @@ class ChatRoom(models.Model):
 
 class Message(models.Model):
     chatroom = models.ForeignKey(ChatRoom, on_delete=models.PROTECT)
-    author = models.ForeignKey(MyUser, on_delete=models.PROTECT)
+    author = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='%(class)s_author')
+    authorized = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='%(class)s_authorized', null=True)
     content = models.CharField(max_length=2000)
     timestamp = models.DateTimeField(default=now, null=True)
 
 
 class ChatRoomPermission(models.Model):
     chatroom = models.ForeignKey(ChatRoom, on_delete=models.PROTECT)
-    user = models.ForeignKey(MyUser, on_delete=models.PROTECT)
+    user = models.ForeignKey(User, on_delete=models.PROTECT)
 
     @property
     def name(self):
@@ -36,9 +39,9 @@ class ChatRoomPermission(models.Model):
 
 class Requests(models.Model):
     sender = models.ForeignKey(
-        MyUser, on_delete=models.PROTECT, related_name='%(class)s_sender')
+        User, on_delete=models.PROTECT, related_name='%(class)s_sender')
     receiver = models.ForeignKey(
-        MyUser, on_delete=models.PROTECT, related_name='%(class)s_receiver')
+        User, on_delete=models.PROTECT, related_name='%(class)s_receiver')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     chatroom = models.OneToOneField(
         ChatRoom, on_delete=models.PROTECT, null=True)
